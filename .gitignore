@@ -1,0 +1,11 @@
+# Arduino / arduino-cli build artifacts
+build/
+*.hex
+*.bin
+*.zip
+*.uf2
+*.elf
+*.dat
+
+# macOS
+.DS_Store

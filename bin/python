@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Shim: the Seeed nRF52 core's .uf2 build step invokes `python`, but macOS only
+# ships `python3` (and /usr/bin/python3 is a CLT stub that misbehaves when called
+# as `python`). Forward to a real Homebrew python3. upload.sh prepends this dir to PATH.
+exec /opt/homebrew/bin/python3 "$@"
