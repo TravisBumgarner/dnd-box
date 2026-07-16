@@ -4,7 +4,8 @@
 # Usage:
 #   ./upload.sh                     # build+upload firmware (the cube app)
 #   ./upload.sh -m                  # ... and open the serial monitor
-#   ./upload.sh calibrate -m        # build+upload the calibration tool + monitor
+#   ./upload.sh calibrate           # automated: calibrate -> write config.h -> flash firmware
+#   ./upload.sh calibrate -m        # raw: build+upload the calibration tool + monitor (debug)
 #   ./upload.sh adxl345_test -m     # build+upload an isolation test from component_tests/
 #   ./upload.sh firmware /dev/cu.usbmodemXXX -m
 #   PORT=/dev/cu.usbmodemXXX ./upload.sh -m
@@ -57,8 +58,6 @@ for arg in "$@"; do
   esac
 done
 
-SKETCH_DIR="$(sketch_dir "$SKETCH")"
-
 if [ -z "$PORT" ]; then
   PORT="$(detect_port || true)"
   if [ -z "$PORT" ]; then
@@ -70,24 +69,51 @@ if [ -z "$PORT" ]; then
   echo ">> Auto-detected port: $PORT"
 fi
 
-echo ">> Compiling $SKETCH..."
-arduino-cli compile --fqbn "$FQBN" --libraries "$SCRIPT_DIR/libraries" "$SKETCH_DIR"
+# Compile + upload a sketch by name to $PORT.
+flash() {
+  local sketch="$1" dir
+  dir="$(sketch_dir "$sketch")"
+  echo ">> Compiling $sketch..."
+  arduino-cli compile --fqbn "$FQBN" --libraries "$SCRIPT_DIR/libraries" "$dir"
 
-# A serial monitor left open from a previous run holds the port, so esptool can't
-# open it ("Resource busy"). Close anything holding it before uploading.
-if command -v lsof >/dev/null 2>&1; then
-  BUSY_PIDS="$(lsof -t "$PORT" 2>/dev/null || true)"
-  if [ -n "$BUSY_PIDS" ]; then
-    echo ">> $PORT is busy (pids: $BUSY_PIDS) — closing before upload..."
-    # shellcheck disable=SC2086
-    kill $BUSY_PIDS 2>/dev/null || true
-    sleep 1
+  # A serial monitor (or our calibrate driver) left holding the port makes esptool
+  # fail with "Resource busy". Close anything holding it before uploading.
+  if command -v lsof >/dev/null 2>&1; then
+    local busy
+    busy="$(lsof -t "$PORT" 2>/dev/null || true)"
+    if [ -n "$busy" ]; then
+      echo ">> $PORT is busy (pids: $busy) — closing before upload..."
+      # shellcheck disable=SC2086
+      kill $busy 2>/dev/null || true
+      sleep 1
+    fi
   fi
+
+  echo ">> Uploading $sketch to $PORT..."
+  arduino-cli upload -p "$PORT" --fqbn "$FQBN" "$dir"
+}
+
+# `./upload.sh calibrate` (no -m): fully automated calibration. Flash the calibrate
+# sketch, walk the sides over serial, capture the emitted block straight into
+# firmware/config.h, then flash the real firmware — no copy-paste, no second command.
+# (`./upload.sh calibrate -m` still does the raw flash+monitor for debugging.)
+if [ "$SKETCH" = "calibrate" ] && [ "$MONITOR" -eq 0 ]; then
+  VENV_PY="$SCRIPT_DIR/.venv/bin/python"
+  if [ ! -x "$VENV_PY" ]; then
+    echo "Missing calibration venv. Create it once with:" >&2
+    echo "  python3 -m venv .venv && .venv/bin/pip install pyserial" >&2
+    exit 1
+  fi
+  flash calibrate
+  echo ">> Starting calibration — rotate the cube as prompted and press Enter for each side."
+  "$VENV_PY" "$SCRIPT_DIR/tools/calibrate_driver.py" "$PORT" "$SCRIPT_DIR/firmware/config.h"
+  echo ">> Calibration captured into firmware/config.h — flashing firmware..."
+  flash firmware
+  echo ">> Done. Calibrated firmware is on the device."
+  exit 0
 fi
 
-echo ">> Uploading $SKETCH to $PORT..."
-arduino-cli upload -p "$PORT" --fqbn "$FQBN" "$SKETCH_DIR"
-
+flash "$SKETCH"
 echo ">> Upload complete."
 
 if [ "$MONITOR" -eq 1 ]; then

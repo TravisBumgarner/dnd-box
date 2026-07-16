@@ -12,10 +12,12 @@
 
 // ───────────────────────── Pin map (Seeed XIAO ESP32-C6) ─────────────────────────
 // LEDs: GPIO ─► resistor (~330Ω) ─► LED anode, cathode ─► GND  (active HIGH).
-#define PIN_LED_RED     D7        // GPIO17
+// Red and blue are wired to each other's pads (D7↔D10), so the macros are mapped to
+// the pins the LEDs are physically on — swap the leads and swap these back if you rewire.
+#define PIN_LED_RED     D10       // GPIO18  (red LED wired to the D10 pad)
 #define PIN_LED_GREEN   D8        // GPIO19
 #define PIN_LED_YELLOW  D9        // GPIO20
-#define PIN_LED_BLUE    D10       // GPIO18
+#define PIN_LED_BLUE    D7        // GPIO17  (blue LED wired to the D7 pad)
 // ADXL345 over I²C (XIAO default SDA/SCL). INT1 must be an LP GPIO (0–7) so it
 // can wake the C6 from deep sleep.
 #define PIN_SDA         D4        // GPIO22
