@@ -3,6 +3,7 @@
 # Installs arduino-cli and the Espressif esp32 core. Safe to re-run.
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ESP_URL="https://espressif.github.io/arduino-esp32/package_esp32_index.json"
 
 if ! command -v arduino-cli >/dev/null 2>&1; then
@@ -25,6 +26,15 @@ arduino-cli core update-index
 
 echo ">> Installing esp32:esp32 core (this downloads the toolchain, be patient)..."
 arduino-cli core install esp32:esp32
+
+# Python venv for the calibration driver (`./upload.sh calibrate`), which needs pyserial.
+if [ ! -x "$SCRIPT_DIR/.venv/bin/python" ]; then
+  echo ">> Creating .venv with pyserial (for ./upload.sh calibrate)..."
+  python3 -m venv "$SCRIPT_DIR/.venv"
+  "$SCRIPT_DIR/.venv/bin/pip" install --quiet --upgrade pip pyserial
+else
+  echo ">> Calibration venv already present."
+fi
 
 echo ">> Done. Connected boards:"
 arduino-cli board list

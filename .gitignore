@@ -9,3 +9,8 @@ build/
 
 # macOS
 .DS_Store
+
+# Python venv for the calibration driver (created by setup.sh)
+.venv/
+__pycache__/
+*.pyc

@@ -1,8 +1,10 @@
 // calibrate.ino — orientation calibration for the DND cube.
 //
 // Walks you through each side: rotate so that face points UP, press Enter, and it
-// records the averaged accelerometer vector. At the end it prints a ready-to-paste
-// config.h block. Run with:  ./upload.sh calibrate -m
+// records the averaged accelerometer vector. At the end it prints a config.h block.
+// Normally run via `./upload.sh calibrate`, which drives this over serial and writes
+// firmware/config.h for you. For raw debugging use `./upload.sh calibrate -m`, then
+// press Enter once to start (the sketch waits for a host byte before printing).
 #include <DndBox.h>
 
 struct CalStep {
@@ -35,8 +37,13 @@ void waitForEnter() {
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial) {}
-  delay(400);
+  // The XIAO C6's USB-Serial/JTAG reports "connected" the moment it boots, so
+  // `while (!Serial)` returns instantly and the banner below prints before any host
+  // is reading — it gets lost. Instead, wait for the host to send a byte first: the
+  // calibrate driver sends one on connect; in `-m` mode, just press Enter to start.
+  while (!Serial.available()) delay(10);
+  while (Serial.available()) Serial.read();   // drain the hello
+  delay(200);
   ledsInit();
 
   if (!adxlBegin()) {
